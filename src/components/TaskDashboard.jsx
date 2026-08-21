@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import { useAuth } from '../react-auth/context/AuthContext';
+import AdminPanel from './AdminPanel';
 
 const TASK_STATUS = {
   Pending: 0,
@@ -85,30 +87,52 @@ const formatDate = (dateValue) => {
 };
 
 const getStatusLabel = (statusValue) => {
+  if (typeof statusValue === 'string' && STATUS_LABELS.includes(statusValue)) {
+    return statusValue;
+  }
+
+  if (statusValue === 'InProgress') {
+    return 'In Progress';
+  }
+
   const label = STATUS_LABELS[Number(statusValue)] ?? 'Pending';
   return label;
 };
 
 const getPriorityLabel = (priorityValue) => {
+  if (typeof priorityValue === 'string' && PRIORITY_LABELS.includes(priorityValue)) {
+    return priorityValue;
+  }
+
   const label = PRIORITY_LABELS[Number(priorityValue)] ?? 'Medium';
   return label;
 };
 
 const TaskDashboard = () => {
+  const { isAdmin } = useAuth();
   const [tasks, setTasks] = useState(initialTasks);
+  const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [priorityFilter, setPriorityFilter] = useState('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [formData, setFormData] = useState(defaultFormState);
+  const [activeTab, setActiveTab] = useState('tasks');
 
   const filteredTasks = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+
     return tasks.filter((task) => {
+      const searchableText = [task.title, task.description, task.category]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+      const searchMatch = !normalizedQuery || searchableText.includes(normalizedQuery);
       const statusMatch = statusFilter === 'All' || getStatusLabel(task.status) === statusFilter;
       const priorityMatch = priorityFilter === 'All' || getPriorityLabel(task.priority) === priorityFilter;
-      return statusMatch && priorityMatch;
+      return searchMatch && statusMatch && priorityMatch;
     });
-  }, [tasks, statusFilter, priorityFilter]);
+  }, [tasks, searchQuery, statusFilter, priorityFilter]);
 
   const summary = useMemo(() => {
     const counts = {
@@ -215,7 +239,8 @@ const TaskDashboard = () => {
           .summary-value { margin-top: 10px; font-size: 28px; font-weight: 700; color: #111827; }
           .filter-bar { background: white; border-radius: 14px; padding: 16px; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08); margin-bottom: 20px; display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
           .filter-field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #374151; }
-          .filter-field select { min-width: 140px; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; background: white; }
+          .filter-field input, .filter-field select { min-width: 140px; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; background: white; }
+          .filter-field input { min-width: 260px; }
           .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
           .task-card { background: white; border-radius: 14px; padding: 18px; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08); border: 1px solid #eef2f7; }
           .task-top-row { display: flex; justify-content: space-between; align-items: start; gap: 8px; }
@@ -243,6 +268,24 @@ const TaskDashboard = () => {
           .form-field input, .form-field textarea, .form-field select { width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; }
           .form-field textarea { min-height: 90px; resize: vertical; }
           .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+          .dashboard-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+          .dashboard-tab { border: 1px solid #d1d5db; background: white; color: #374151; padding: 10px 14px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+          .dashboard-tab.active { background: #1f2937; color: white; border-color: #1f2937; }
+          .admin-panel { background: white; border-radius: 14px; padding: 24px; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08); }
+          .admin-panel-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 20px; }
+          .admin-panel-header h2 { margin: 0; color: #111827; }
+          .admin-eyebrow { margin: 0 0 6px; color: #2563eb; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+          .admin-table-wrap { overflow-x: auto; }
+          .admin-table { width: 100%; border-collapse: collapse; text-align: left; }
+          .admin-table th, .admin-table td { border-bottom: 1px solid #e5e7eb; padding: 14px 10px; vertical-align: middle; }
+          .admin-table th { color: #6b7280; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+          .admin-table td strong, .admin-table td small { display: block; }
+          .admin-table td small { color: #6b7280; margin-top: 4px; }
+          .admin-table select { padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; }
+          .access-badge { display: inline-flex; padding: 5px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+          .access-active { background: #dcfce7; color: #166534; }
+          .access-inactive { background: #fee2e2; color: #991b1b; }
+          .admin-error { background: #fee2e2; color: #991b1b; padding: 10px 12px; border-radius: 8px; margin-bottom: 16px; }
           @media (max-width: 640px) { .summary-grid, .form-grid { grid-template-columns: 1fr; } .task-header { flex-direction: column; align-items: flex-start; gap: 12px; } }
         `}
       </style>
@@ -254,6 +297,16 @@ const TaskDashboard = () => {
             + New Task
           </button>
         </div>
+
+        {isAdmin && (
+          <div className="dashboard-tabs" role="tablist" aria-label="Dashboard views">
+            <button className={`dashboard-tab ${activeTab === 'tasks' ? 'active' : ''}`} type="button" role="tab" aria-selected={activeTab === 'tasks'} onClick={() => setActiveTab('tasks')}>Tasks</button>
+            <button className={`dashboard-tab ${activeTab === 'admin' ? 'active' : ''}`} type="button" role="tab" aria-selected={activeTab === 'admin'} onClick={() => setActiveTab('admin')}>Admin Panel / Client Management</button>
+          </div>
+        )}
+
+        {isAdmin && activeTab === 'admin' ? <AdminPanel /> : (
+        <>
 
         <div className="summary-grid">
           <div className="summary-card">
@@ -279,6 +332,17 @@ const TaskDashboard = () => {
         </div>
 
         <div className="filter-bar">
+          <div className="filter-field">
+            <label htmlFor="taskSearch">Search tasks</label>
+            <input
+              id="taskSearch"
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search title, description, or category"
+            />
+          </div>
+
           <div className="filter-field">
             <label htmlFor="statusFilter">Status</label>
             <select id="statusFilter" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
@@ -336,6 +400,8 @@ const TaskDashboard = () => {
             </article>
           ))}
         </div>
+        </>
+        )}
       </div>
 
       {isModalOpen && (
